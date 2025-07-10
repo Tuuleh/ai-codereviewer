@@ -170,6 +170,13 @@ async function getAIResponse(prompt: string): Promise<Array<{
 
     const responseText = response.choices[0].message?.content?.trim() || "{}";
     
+    // DEBUG: Print raw response for analysis
+    console.log("=== DEBUG: RAW OPENAI RESPONSE ===");
+    console.log("Model:", OPENAI_API_MODEL);
+    console.log("Raw response:");
+    console.log(JSON.stringify(responseText, null, 2));
+    console.log("=== END DEBUG ===");
+    
     // Always clean markdown-wrapped JSON (some models still return wrapped JSON even with json_object mode)
     let cleanedText = responseText;
     
