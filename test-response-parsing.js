@@ -5,7 +5,12 @@
 const mockResponses = [
   {
     model: "gpt-4o",
-    description: "Clean JSON response",
+    description: "Real gpt-4o response (empty reviews)",
+    response: `{"reviews": []}`
+  },
+  {
+    model: "gpt-4o",
+    description: "Clean JSON response with reviews",
     response: `{"reviews": [{"lineNumber": "10", "reviewComment": "Consider using const instead of let"}]}`
   },
   {
