@@ -110,6 +110,36 @@ ${chunk.changes
 `;
 }
 
+// Helper function to check if model supports JSON mode
+function supportsJsonMode(model: string): boolean {
+  const jsonSupportedModels = [
+    // GPT-4 family
+    'gpt-4', 'gpt-4-32k', 'gpt-4-0613', 'gpt-4-32k-0613', 
+    'gpt-4-0125-preview', 'gpt-4-1106-preview', 'gpt-4-turbo', 
+    'gpt-4-turbo-preview', 'gpt-4-turbo-2024-04-09',
+    
+    // GPT-4o family
+    'gpt-4o', 'gpt-4o-2024-05-13', 'gpt-4o-2024-08-06', 
+    'gpt-4o-2024-11-20', 'gpt-4o-mini', 'gpt-4o-mini-2024-07-18',
+    
+    // GPT-3.5 family
+    'gpt-3.5-turbo', 'gpt-3.5-turbo-1106', 'gpt-3.5-turbo-0125', 'gpt-3.5-turbo-16k',
+    
+    // GPT-4.1 family
+    'gpt-4.1', 'gpt-4.1-2025-04-14', 'gpt-4.1-nano', 'gpt-4.1-nano-2025-04-14',
+    'gpt-4.1-mini', 'gpt-4.1-mini-2025-04-14',
+    
+    // GPT-4.5 family
+    'gpt-4.5-preview', 'gpt-4.5-preview-2025-02-27',
+    
+    // Reasoning models
+    'o1-2024-12-17', 'o1', 'o3', 'o3-2025-04-16', 'o3-mini', 'o3-mini-2025-01-31',
+    'o4-mini', 'o4-mini-2025-04-16'
+  ];
+  
+  return jsonSupportedModels.indexOf(model) !== -1;
+}
+
 async function getAIResponse(prompt: string): Promise<Array<{
   lineNumber: string;
   reviewComment: string;
@@ -126,8 +156,8 @@ async function getAIResponse(prompt: string): Promise<Array<{
   try {
     const response = await openai.chat.completions.create({
       ...queryConfig,
-      // return JSON if the model supports it:
-      ...(OPENAI_API_MODEL === "gpt-4-1106-preview"
+      // Use JSON mode for supported models, fallback for others
+      ...(supportsJsonMode(OPENAI_API_MODEL)
         ? { response_format: { type: "json_object" } }
         : {}),
       messages: [
@@ -138,8 +168,16 @@ async function getAIResponse(prompt: string): Promise<Array<{
       ],
     });
 
-    const res = response.choices[0].message?.content?.trim() || "{}";
-    return JSON.parse(res).reviews;
+    const responseText = response.choices[0].message?.content?.trim() || "{}";
+    
+    // Clean markdown-wrapped JSON for models that don't support JSON mode
+    const cleanedText = supportsJsonMode(OPENAI_API_MODEL) 
+      ? responseText  // Already clean JSON
+      : responseText
+          .replace(/^```(?:json)?/, '')   // Remove opening ```json
+          .replace(/```$/, '');           // Remove closing ```
+    
+    return JSON.parse(cleanedText).reviews;
   } catch (error) {
     console.error("Error:", error);
     return null;
@@ -154,16 +192,18 @@ function createComment(
     reviewComment: string;
   }>
 ): Array<{ body: string; path: string; line: number }> {
-  return aiResponses.flatMap((aiResponse) => {
-    if (!file.to) {
-      return [];
+  const comments: Array<{ body: string; path: string; line: number }> = [];
+  for (let i = 0; i < aiResponses.length; i++) {
+    const aiResponse = aiResponses[i];
+    if (file.to) {
+      comments.push({
+        body: aiResponse.reviewComment,
+        path: file.to,
+        line: Number(aiResponse.lineNumber),
+      });
     }
-    return {
-      body: aiResponse.reviewComment,
-      path: file.to,
-      line: Number(aiResponse.lineNumber),
-    };
-  });
+  }
+  return comments;
 }
 
 async function createReviewComment(
