@@ -170,14 +170,35 @@ async function getAIResponse(prompt: string): Promise<Array<{
 
     const responseText = response.choices[0].message?.content?.trim() || "{}";
     
-    // Clean markdown-wrapped JSON for models that don't support JSON mode
-    const cleanedText = supportsJsonMode(OPENAI_API_MODEL) 
-      ? responseText  // Already clean JSON
-      : responseText
-          .replace(/^```(?:json)?/, '')   // Remove opening ```json
-          .replace(/```$/, '');           // Remove closing ```
+    // DEBUG: Print raw response for analysis
+    console.log("=== DEBUG: RAW OPENAI RESPONSE ===");
+    console.log("Model:", OPENAI_API_MODEL);
+    console.log("Raw response:");
+    console.log(JSON.stringify(responseText, null, 2));
+    console.log("=== END DEBUG ===");
     
-    return JSON.parse(cleanedText).reviews;
+    // Always clean markdown-wrapped JSON (some models still return wrapped JSON even with json_object mode)
+    let cleanedText = responseText;
+    
+    // Remove markdown code block wrapper if present
+    if (cleanedText.startsWith('```')) {
+      cleanedText = cleanedText.replace(/^```(?:json)?\s*\n?/, '');  // Remove opening ```json
+    }
+    if (cleanedText.endsWith('```')) {
+      cleanedText = cleanedText.replace(/\n?\s*```\s*$/, '');       // Remove closing ```
+    }
+    
+    cleanedText = cleanedText.trim();
+    
+    try {
+      return JSON.parse(cleanedText).reviews;
+    } catch (parseError) {
+      console.error("JSON parse error for model:", OPENAI_API_MODEL);
+      console.error("Original response:", responseText);
+      console.error("Cleaned text:", cleanedText);
+      console.error("Parse error:", parseError);
+      return null;
+    }
   } catch (error) {
     console.error("Error:", error);
     return null;
